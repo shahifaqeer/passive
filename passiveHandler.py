@@ -22,12 +22,18 @@ class passiveHandler(object):
         Initialize database and codec
         """
         self.filename = filename
+        self.date_start = datetime(2012, 11, 1).date()
+        self.date_end = datetime(2012, 11, 15).date()
+        # mapped key format: device_id, direction, port,
+        # trans_proto, domain, timestamp
+        # mapped value : packetsize
+        self.mapped_format = '%s,%s,%s,%s,%s,%s'
+        self.currentNode = ''
+        self.Date = ''
+        self.nodes = []
         try:
             self.db = leveldb.LevelDB(filename)     # read leveldb
             self.codec = MessageCodec(pb2file='trace.pb2', typename='passive.Trace')    # mapped to only useful metrics
-            # self.initialization()
-            self.mapped_format = '%s,%s,%s,%s,%s,%s,%s'
-            self.currentNode = ''
         except:
             print "Initialization Unsuccessful"
         return
@@ -39,36 +45,42 @@ class passiveHandler(object):
         # [flow_id] : {dstip, dstport, srcip, srcport, transport_protocol}
         self.addressTable = defaultdict(int)        # trace[address_table_entry]
         # [mac] : {device ip}
-        # self.TraceKey = namedtuple(
-        #    'TraceKey',
-        #    ['node_id', 'anonymization_context', 'session_id', 'sequence_number'])
-        # self.currentTime = 0                        # current state time
-        # self.TraceTime = []                         # list till current state time
-        # self.deviceState = defaultdict(list)
-        # mapped key format: node_id, device_id, direction, port,
-        # trans_proto, domain, timestamp
-        # mapped value : packetsize
+        dbmapped = leveldb.LevelDB(self.filename + '_' + node_id)
+        self.nodes.append(node_id)
+
         self.size_dist = defaultdict(int)           # packet size distribution from trace[packets series]
         self.bytesperminute = defaultdict(int)      # size v/s timestamp from trace[packet series]
         self.bytesperday = defaultdict(int)
-        return
+
+        self.port_dist_size = defaultdict(int)
+        self.port_dist_count = defaultdict(int)
+        self.bytesperportperminute = defaultdict(int)
+
+        return dbmapped
 
     def iterTrace(self):
-        # map - reduced data used for plotting
-        dbmapped = leveldb.LevelDB(self.filename + '_reduced')
-        cnt = 0
 
         for key, value in self.db.RangeIter():
             #get key
             node_id, anon_context, session_id, sequence_number = self.parse_key(key)
             if node_id != self.currentNode:
-                self.initialization(node_id)
+                dbmapped = self.initialization(node_id)
+                print "START", node_id
 
             # trace = self.codec.decode(value)
             trace = self.codec.decode(value)
 
             # table timestamp 30 sec granularity - after write
-            # self.currentTime = datetime.fromtimestamp(trace['trace_creation_timestamp'])
+            currentTime = datetime.fromtimestamp(trace['trace_creation_timestamp'])
+            currentDate = currentTime.date()
+            if currentDate >= self.date_end:
+                break
+            if currentDate < self.date_start:
+                continue
+
+            if self.Date != currentDate:
+                print currentDate
+                self.Date = currentDate
 
             # mintain current address table MAC:IP
             self.addressTableMaker(trace)
@@ -85,15 +97,12 @@ class passiveHandler(object):
             # get device_id : ip -> srcip : flowid, direction / dstip : flowid,
             # direction -> flowid: timestamp, size
             # save mapped data
-            dbmapped = self.packetSeriesReader(trace, node_id, dbmapped)
+            dbmapped = self.packetSeriesReader(trace, dbmapped)
 
-            cnt += 1
-            if cnt == 1000:
-                break
         return dbmapped
 
     #trace level
-    def packetSeriesReader(self, trace, node_id, dbmapped):
+    def packetSeriesReader(self, trace, dbmapped):
         """
         trace['packet_series'] = [
             {'flow_id: (int), 'size': (int),
@@ -109,7 +118,7 @@ class passiveHandler(object):
             flow_id = pse['flow_id']
             timestamp = pse['timestamp_microseconds']       # unix timestamp
             # timestamp = datetime.fromtimestamp(pse['timestamp_microseconds'] * 0.000001)
-            # timestamp.replace(microsecond=0)
+            # timestamp2 = timestamp.replace(microsecond=0)
             packetSize = pse['size']
             # get corresponding IPs/ports from self.flowTable OR trace['flow_table_entry']
             if (flow_id != 2) and (flow_id != 4) and (flow_id in self.flowTable):
@@ -146,21 +155,18 @@ class passiveHandler(object):
             else:
                 # print "Not in addressTable", dstip, srcip
                 continue
-            mappedKey = self.mapped_format % (node_id, deviceid, direction,
+            mappedKey = self.mapped_format % (deviceid, direction,
                                               port, trans_proto, domain, timestamp)
             mappedValue = str(packetSize)
 
-            #Write batch
+            # Write batch
             dbbatch.Put(mappedKey, mappedValue)
 
-            # Size distribution overall
-            self.size_dist[pse['size']] += 1
-            # Bytes per minute and per day
-            timestamp = datetime.fromtimestamp(pse['timestamp_microseconds'] * 0.000001)
-            datestamp = timestamp.date()
-            timehash = timestamp.replace(microsecond=0, second=0)
-            self.bytesperminute[timehash] += pse['size']
-            self.bytesperday[datestamp] += pse['size']
+            # size distributions
+            ts = datetime.fromtimestamp(timestamp * 0.000001)
+            timehash = ts.replace(microsecond=0, second=0)
+            self.size_stats(packetSize, timehash, direction)
+            self.port_stats(packetSize, timehash, direction, port)
 
         dbmapped.Write(dbbatch, sync=True)
 
@@ -196,32 +202,56 @@ class passiveHandler(object):
         return
 
     def testIterTrace(self, totcount):
-        dbmapped = leveldb.LevelDB(self.filename + '_reduced')
-        cnt = 0
 
+        cnt = 0
         for key, value in self.db.RangeIter():
             node_id, anon_context, session_id, sequence_number = self.parse_key(key)
             if node_id != self.currentNode:
-                self.initialization(node_id)
+                dbmapped = self.initialization(node_id)
+                print "DONE", node_id
+                cnt += 1
             trace = self.codec.decode(value)
+
+            # table timestamp 30 sec granularity - after write
+            currentTime = datetime.fromtimestamp(trace['trace_creation_timestamp'])
+            currentDate = currentTime.date()
+            if currentDate >= self.date_end:
+                break
+            if currentDate < self.date_start:
+                continue
+            if self.Date != currentDate:
+                print currentDate
+                self.Date = currentDate
+
             self.addressTableMaker(trace)
             self.flowTableMaker(trace)
             self.DNStableMaker(trace)
-            dbmapped = self.packetSeriesReader(trace, node_id, dbmapped)
-            cnt += 1
+            dbmapped = self.packetSeriesReader(trace, dbmapped)
             if cnt == totcount:
                 break
         return dbmapped
 
-#    def deviceTime(self):
-#        #self.TraceTime.append(self.currentTime)
-#        [self.deviceState[k].append(self.currentTime) for k in self.addressTable.keys()]
-#        return
+    def size_stats(self, size, timehash, direction):
+        # Size distribution overall
+        self.size_dist[size] += 1
+
+        # Bytes per minute and per day
+        datestamp = timehash.date()
+        self.bytesperminute[timehash, direction] += size
+        self.bytesperday[datestamp, direction] += size
+        return
+
+    def port_stats(self, size, timehash, direction, port):
+        self.port_dist_size[port, direction] += size
+        self.port_dist_count[port, direction] += 1
+
+        self.bytesperportperminute[port, direction, timehash] += size
+        return
 
 
 def initialize():
     filename = 'filtered-20121101-20121201'
     pHandle = passiveHandler(filename)
-    dbm = pHandle.testIterTrace(1000)
-    # dbm = pHandle.iterTrace()
+    # dbm = pHandle.testIterTrace(2)      # number of nodes
+    dbm = pHandle.iterTrace()
     return pHandle, dbm
