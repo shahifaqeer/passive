@@ -56,21 +56,20 @@ class passiveHandler(object):
     def iterTrace(self):
         # map - reduced data used for plotting
         dbmapped = leveldb.LevelDB(self.filename + '_reduced')
+        cnt = 0
 
         for key, value in self.db.RangeIter():
             #get key
             node_id, anon_context, session_id, sequence_number = self.parse_key(key)
             if node_id != self.currentNode:
-                self.initialize()
+                self.initialization(node_id)
 
             # trace = self.codec.decode(value)
             trace = self.codec.decode(value)
 
-            print ('packet_series' in trace)
-
             # table timestamp 30 sec granularity - after write
             # self.currentTime = datetime.fromtimestamp(trace['trace_creation_timestamp'])
-            '''
+
             # mintain current address table MAC:IP
             self.addressTableMaker(trace)
             # DEVICE v/s connected or not
@@ -87,7 +86,10 @@ class passiveHandler(object):
             # direction -> flowid: timestamp, size
             # save mapped data
             dbmapped = self.packetSeriesReader(trace, node_id, dbmapped)
-            '''
+
+            cnt += 1
+            if cnt == 1000:
+                break
         return dbmapped
 
     #trace level
@@ -99,6 +101,9 @@ class passiveHandler(object):
             ... ]
         """
         dbbatch = leveldb.WriteBatch()
+
+        if not 'packet_series' in trace:
+            return dbmapped
 
         for pse in trace['packet_series']:
             flow_id = pse['flow_id']
