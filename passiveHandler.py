@@ -195,6 +195,24 @@ class passiveHandler(object):
                 self.DNStable[arecord['ip_address']] = (arecord['domain'], arecord['anonymized'])
         return
 
+    def testIterTrace(self, totcount):
+        dbmapped = leveldb.LevelDB(self.filename + '_reduced')
+        cnt = 0
+
+        for key, value in self.db.RangeIter():
+            node_id, anon_context, session_id, sequence_number = self.parse_key(key)
+            if node_id != self.currentNode:
+                self.initialization(node_id)
+            trace = self.codec.decode(value)
+            self.addressTableMaker(trace)
+            self.flowTableMaker(trace)
+            self.DNStableMaker(trace)
+            dbmapped = self.packetSeriesReader(trace, node_id, dbmapped)
+            cnt += 1
+            if cnt == totcount:
+                break
+        return dbmapped
+
 #    def deviceTime(self):
 #        #self.TraceTime.append(self.currentTime)
 #        [self.deviceState[k].append(self.currentTime) for k in self.addressTable.keys()]
@@ -204,5 +222,6 @@ class passiveHandler(object):
 def initialize():
     filename = 'filtered-20121101-20121201'
     pHandle = passiveHandler(filename)
-    dbm = pHandle.iterTrace()
+    dbm = pHandle.testIterTrace(1000)
+    # dbm = pHandle.iterTrace()
     return pHandle, dbm
