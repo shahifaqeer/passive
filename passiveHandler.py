@@ -107,9 +107,9 @@ class passiveHandler(object):
 
         for pse in trace['packet_series']:
             flow_id = pse['flow_id']
+            timestamp = pse['timestamp_microseconds']       # unix timestamp
             # timestamp = datetime.fromtimestamp(pse['timestamp_microseconds'] * 0.000001)
-            timestamp = datetime.fromtimestamp(pse['timestamp_microseconds'] * 0.000001)
-            timestamp.replace(microsecond=0)
+            # timestamp.replace(microsecond=0)
             packetSize = pse['size']
             # get corresponding IPs/ports from self.flowTable OR trace['flow_table_entry']
             if (flow_id != 2) and (flow_id != 4) and (flow_id in self.flowTable):
