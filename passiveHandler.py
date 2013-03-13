@@ -285,7 +285,8 @@ class passiveHandler(object):
 
 def initialize():
     filename = 'filtered-20121101-20121201'
-    pHandle = passiveHandler(filename)
+    folder = 'node_data/'
+    pHandle = passiveHandler(filename,folder)
     # dbm = pHandle.testIterTrace(2)      # number of nodes
     dbm = pHandle.iterTrace()
     return pHandle, dbm
