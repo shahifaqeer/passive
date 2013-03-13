@@ -58,6 +58,7 @@ class passiveHandler(object):
         self.port_dist_size = defaultdict(int)
         self.port_dist_count = defaultdict(int)
         self.bytesperportperminute = defaultdict(int)
+        self.requestsperportpersecond = defaultdict(int)
 
         # DEVICE v/s connected or not
         self.devices = defaultdict(list)
@@ -181,6 +182,7 @@ class passiveHandler(object):
             self.size_stats(packetSize, timehash, direction)
             self.port_stats(packetSize, timehash, direction, port)
             self.device_stats(timehash, deviceid)
+            self.requestsperportpersecond[port, direction, ts.replace(microsecond=0)] += 1
 
         dbmapped.Write(dbbatch, sync=True)
 
@@ -274,6 +276,7 @@ class passiveHandler(object):
         pkl.dump(self.port_dist_size, open(self.folder + self.currentNode + 'port_dist_size.out', 'wb'))
         pkl.dump(self.port_dist_count, open(self.folder + self.currentNode + 'port_dist_count.out', 'wb'))
         pkl.dump(self.bytesperportperminute, open(self.folder + self.currentNode + 'bytesperportperminute.out', 'wb'))
+        pkl.dump(self.requestsperportpersecond, open(self.folder + self.currentNode + 'requestsperportpersecond.out', 'wb'))
 
         pkl.dump(self.devices, open(self.folder + self.currentNode + 'device_state.out', 'wb'))
 
