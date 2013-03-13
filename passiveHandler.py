@@ -18,11 +18,12 @@ class passiveHandler(object):
     db = leveldb database handler
 
     """
-    def __init__(self, filename):
+    def __init__(self, filename='/data/users/sarthak/filtered-20121101-20121201', folder='/data/users/sarthak/node_data/'):
         """
         Initialize database and codec
         """
         self.filename = filename
+        self.folder = folder
         self.date_start = datetime(2012, 11, 1).date()
         self.date_end = datetime(2012, 11, 15).date()
         # mapped key format: device_id, direction, port,
@@ -179,6 +180,7 @@ class passiveHandler(object):
             timehash = ts.replace(microsecond=0, second=0)
             self.size_stats(packetSize, timehash, direction)
             self.port_stats(packetSize, timehash, direction, port)
+            self.device_stats(timehash, deviceid)
 
         dbmapped.Write(dbbatch, sync=True)
 
@@ -265,15 +267,15 @@ class passiveHandler(object):
 
     def dumpData(self):
         # DATA
-        pkl.dump(self.size_dist, open(self.currentNode + '_size_dist', 'wb'))
-        pkl.dump(self.bytesperminute, open(self.currentNode + '_bytesperminute', 'wb'))
-        pkl.dump(self.bytesperday, open(self.currentNode + '_bytesperday', 'wb'))
+        pkl.dump(self.size_dist, open(self.folder + self.currentNode + 'size_dist.out', 'wb'))
+        pkl.dump(self.bytesperminute, open(self.folder + self.currentNode + 'bytesperminute.out', 'wb'))
+        pkl.dump(self.bytesperday, open(self.folder + self.currentNode + 'bytesperday.out', 'wb'))
 
-        pkl.dump(self.port_dist_size, open(self.currentNode + '_port_dist_size', 'wb'))
-        pkl.dump(self.port_dist_count, open(self.currentNode + '_port_dist_count', 'wb'))
-        pkl.dump(self.bytesperportperminute, open(self.currentNode + '_bytesperportperminute', 'wb'))
+        pkl.dump(self.port_dist_size, open(self.folder + self.currentNode + 'port_dist_size.out', 'wb'))
+        pkl.dump(self.port_dist_count, open(self.folder + self.currentNode + 'port_dist_count.out', 'wb'))
+        pkl.dump(self.bytesperportperminute, open(self.folder + self.currentNode + 'bytesperportperminute.out', 'wb'))
 
-        pkl.dump(self.devices, open(self.currentNode + '_device_state', 'wb'))
+        pkl.dump(self.devices, open(self.folder + self.currentNode + 'device_state.out', 'wb'))
 
         return
 
