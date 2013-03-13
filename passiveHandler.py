@@ -6,6 +6,7 @@ from __future__ import division
 from collections import defaultdict  # , namedtuple
 import struct
 from datetime import datetime  # , time
+import pickle as pkl
 
 import leveldb
 from lwpb.codec import MessageCodec
@@ -48,6 +49,7 @@ class passiveHandler(object):
         dbmapped = leveldb.LevelDB(self.filename + '_' + node_id)
         self.nodes.append(node_id)
 
+        # DATA
         self.size_dist = defaultdict(int)           # packet size distribution from trace[packets series]
         self.bytesperminute = defaultdict(int)      # size v/s timestamp from trace[packet series]
         self.bytesperday = defaultdict(int)
@@ -56,48 +58,58 @@ class passiveHandler(object):
         self.port_dist_count = defaultdict(int)
         self.bytesperportperminute = defaultdict(int)
 
+        # DEVICE v/s connected or not
+        self.devices = defaultdict(list)
+
         return dbmapped
 
     def iterTrace(self):
 
+        decode_it = True
         for key, value in self.db.RangeIter():
             #get key
             node_id, anon_context, session_id, sequence_number = self.parse_key(key)
             if node_id != self.currentNode:
+                if self.currentNode != '':
+                    # decode trace only if date in range, else wait till next node_id
+                    decode_it = True
+                    # dump old data
+                    self.dumpData()
+                # Reinitialize
                 dbmapped = self.initialization(node_id)
                 print "START", node_id
 
-            # trace = self.codec.decode(value)
-            trace = self.codec.decode(value)
+            if decode_it:
+                trace = self.codec.decode(value)
+                # table timestamp 30 sec granularity - after write
+                currentTime = datetime.fromtimestamp(trace['trace_creation_timestamp'])
+                currentDate = currentTime.date()
+                if currentDate >= self.date_end:
+                    decode_it = False
+                    continue
+                if currentDate < self.date_start:
+                    continue
 
-            # table timestamp 30 sec granularity - after write
-            currentTime = datetime.fromtimestamp(trace['trace_creation_timestamp'])
-            currentDate = currentTime.date()
-            if currentDate >= self.date_end:
-                break
-            if currentDate < self.date_start:
+                if self.Date != currentDate:
+                    print currentDate
+                    self.Date = currentDate
+
+                # maintain current address table MAC:IP
+                self.addressTableMaker(trace)
+
+                # maintain current flowtable FLOWID: SRCIP, SRCPORT, DSTIP, DSTPORT, TRANS_PROTO
+                self.flowTableMaker(trace)
+
+                # make DNS lookup table
+                # IP : anonynymized, domain name
+                self.DNStableMaker(trace)
+
+                # get device_id : ip -> srcip : flowid, direction / dstip : flowid,
+                # direction -> flowid: timestamp, size
+                # save mapped data
+                dbmapped = self.packetSeriesReader(trace, dbmapped)
+            else:
                 continue
-
-            if self.Date != currentDate:
-                print currentDate
-                self.Date = currentDate
-
-            # mintain current address table MAC:IP
-            self.addressTableMaker(trace)
-            # DEVICE v/s connected or not
-            # self.deviceTime()    # plot deviceState
-
-            # maintain current flowtable FLOWID: SRCIP, SRCPORT, DSTIP, DSTPORT, TRANS_PROTO
-            self.flowTableMaker(trace)
-
-            # make DNS lookup table
-            # IP : anonynymized, domain name
-            self.DNStableMaker(trace)
-
-            # get device_id : ip -> srcip : flowid, direction / dstip : flowid,
-            # direction -> flowid: timestamp, size
-            # save mapped data
-            dbmapped = self.packetSeriesReader(trace, dbmapped)
 
         return dbmapped
 
@@ -246,6 +258,23 @@ class passiveHandler(object):
         self.port_dist_count[port, direction] += 1
 
         self.bytesperportperminute[port, direction, timehash] += size
+        return
+
+    def device_stats(self, timehash, deviceid):
+        self.devices[timehash].append(deviceid)
+
+    def dumpData(self):
+        # DATA
+        pkl.dump(self.size_dist, open(self.currentNode + '_size_dist', 'wb'))
+        pkl.dump(self.bytesperminute, open(self.currentNode + '_bytesperminute', 'wb'))
+        pkl.dump(self.bytesperday, open(self.currentNode + '_bytesperday', 'wb'))
+
+        pkl.dump(self.port_dist_size, open(self.currentNode + '_port_dist_size', 'wb'))
+        pkl.dump(self.port_dist_count, open(self.currentNode + '_port_dist_count', 'wb'))
+        pkl.dump(self.bytesperportperminute, open(self.currentNode + '_bytesperportperminute', 'wb'))
+
+        pkl.dump(self.devices, open(self.currentNode + '_device_state', 'wb'))
+
         return
 
 
