@@ -1,5 +1,6 @@
 """
 Read leveldb trace recursively
+Create my own appropriate leveldb
 """
 
 from __future__ import division
@@ -24,7 +25,7 @@ class passiveHandler(object):
         """
         self.filename = filename
         self.folder = folder
-        self.date_start = datetime(2012, 11, 1).date()
+        self.date_start = datetime(2012, 10, 1).date()
         self.date_end = datetime(2012, 11, 15).date()
         # mapped key format: device_id, direction, port,
         # trans_proto, domain, timestamp
@@ -33,14 +34,7 @@ class passiveHandler(object):
         self.currentNode = ''
         self.Date = ''
         self.nodes = []
-        self.NODE_LIST = ['OW2CB05D82F41A', 'OW2CB05D873788', 'OW2CB05D873B24',
-                          'OW2CB05D873B30', 'OW2CB05DA0C226', 'OW2CB05DA0D32D',
-                          'OW4C60DED0F565', 'OW4C60DED0F577', 'OW4C60DED0F74B',
-                          'OW4C60DEE6C9AB', 'OWA021B7A9C655', 'OWC43DC78EE081',
-                          'OWC43DC79B5D25', 'OWC43DC79DE0F7', 'OWC43DC7A376D3',
-                          'OWC43DC7A37C4C', 'OWC43DC7A3EDEC', 'OWC43DC7B0ADD9',
-                          'OWC43DC7B0AE54', 'OWC43DC7B0AE78', 'OWC43DC7B0CAB6',
-                          'OW744401936228']
+        self.NODE_LIST = pkl.load(open('NODE_LIST.dat', 'rb'))
         try:
             self.db = leveldb.LevelDB(filename)     # read leveldb
             self.codec = MessageCodec(pb2file='trace.pb2', typename='passive.Trace')    # mapped to only useful metrics
@@ -275,7 +269,8 @@ class passiveHandler(object):
         return
 
     def device_stats(self, timehash, deviceid):
-        self.devices[timehash].append(deviceid)
+        if not deviceid in self.devices[timehash]:
+            self.devices[timehash].append(deviceid)
 
     def dumpData(self):
         # DATA
