@@ -19,7 +19,7 @@ class passiveHandler(object):
     db = leveldb database handler
 
     """
-    def __init__(self, filename='/data/users/sarthak/filtered-20121101-20121201', folder='/data/users/sarthak/node_data/'):
+    def __init__(self, filename='/data/users/sarthak/filtered-20121001-20121101', folder='/data/users/sarthak/node_data/'):
         """
         Initialize database and codec
         """
