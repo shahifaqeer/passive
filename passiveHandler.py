@@ -26,7 +26,7 @@ class passiveHandler(object):
         self.filename = filename
         self.folder = folder
         self.date_start = datetime(2012, 10, 1).date()
-        self.date_end = datetime(2012, 11, 15).date()
+        self.date_end = datetime(2012, 10, 15).date()
         # mapped key format: device_id, direction, port,
         # trans_proto, domain, timestamp
         # mapped value : packetsize
@@ -65,6 +65,9 @@ class passiveHandler(object):
         # DEVICE v/s connected or not
         self.devices = defaultdict(list)
 
+        # ROUTER active or OFF
+        self.routerActive = []
+
         return dbmapped
 
     def iterTrace(self):
@@ -99,6 +102,10 @@ class passiveHandler(object):
                 if self.Date != currentDate:
                     print currentDate
                     self.Date = currentDate
+
+                # timeseries of router ACTIVE periods - dump using
+                # self.dumpData()
+                self.routerActive.append(currentTime)
 
                 # maintain current address table MAC:IP
                 self.addressTableMaker(trace)
@@ -285,11 +292,13 @@ class passiveHandler(object):
 
         pkl.dump(self.devices, open(self.folder + self.currentNode + 'device_state.out', 'wb'))
 
+        pkl.dump(self.routerActive, open(self.folder + self.currentNode + 'active.out', 'wb'))
+
         return
 
 
 def initialize():
-    filename = 'filtered-20121101-20121201'
+    filename = 'filtered-20121001-20121101'
     folder = 'node_data/'
     pHandle = passiveHandler(filename, folder)
     # dbm = pHandle.testIterTrace(2)      # number of nodes
