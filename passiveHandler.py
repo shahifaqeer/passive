@@ -23,7 +23,7 @@ class passiveHandler(object):
         """
         Initialize database and codec
         """
-        if month == 'NOV':
+        if month == 10:
             self.filename = '/data/users/sarthak/filtered-20121001-20121101'
             self.folder = '/data/users/sarthak/node_data_OCT/'
             self.date_start = datetime(2012, 10, 1).date()
@@ -68,7 +68,7 @@ class passiveHandler(object):
         self.port_dist_count = defaultdict(int)
 #        self.bytesperportperminute = defaultdict(int)
 #        self.requestsperportpersecond = defaultdict(int)
-        self.infoPerMinute = defaultdict(int)
+        self.infoPerMinute = defaultdict(dict)
 
         # DEVICE v/s connected or not
         self.devices = defaultdict(list)
@@ -210,7 +210,9 @@ class passiveHandler(object):
         return dbmapped
 
     def all_stats(self, timehash, deviceid, direction, port, transproto, domain, packetSize):
-        self.infoPerMinute[timehash][deviceid, direction, port, transproto, domain] += packetSize
+        if not (deviceid, direction, port, transproto) in self.infoPerMinute[timehash]:
+            self.infoPerMinute[timehash][(deviceid, direction, port, transproto)] = 0
+        self.infoPerMinute[timehash][(deviceid, direction, port, transproto)] += packetSize
 
     def parse_key(self, key):
         node_id, anonymization_context, remainder = key.split('\x00', 2)
@@ -313,9 +315,9 @@ class passiveHandler(object):
 
 
 def initialize():
-    filename = 'filtered-20121001-20121101'
-    folder = 'node_data/'
-    pHandle = passiveHandler(filename, folder)
+    #filename = 'filtered-20121001-20121101'
+    #folder = 'node_data/'
+    pHandle = passiveHandler(11)
     # dbm = pHandle.testIterTrace(2)      # number of nodes
     dbm = pHandle.iterTrace()
     return pHandle, dbm
