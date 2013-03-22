@@ -19,14 +19,21 @@ class passiveHandler(object):
     db = leveldb database handler
 
     """
-    def __init__(self, filename='/data/users/sarthak/filtered-20121001-20121101', folder='/data/users/sarthak/node_data/'):
+    def __init__(self, month):
         """
         Initialize database and codec
         """
-        self.filename = filename
-        self.folder = folder
-        self.date_start = datetime(2012, 10, 1).date()
-        self.date_end = datetime(2012, 10, 15).date()
+        if month == 'NOV':
+            self.filename = '/data/users/sarthak/filtered-20121001-20121101'
+            self.folder = '/data/users/sarthak/node_data_OCT/'
+            self.date_start = datetime(2012, 10, 1).date()
+            self.date_end = datetime(2012, 11, 1).date()
+        else:
+            self.filename = '/data/users/sarthak/filtered-20121101-20121201'
+            self.folder = '/data/users/sarthak/node_data_NOV/'
+            self.date_start = datetime(2012, 11, 1).date()
+            self.date_end = datetime(2012, 12, 1).date()
+
         # mapped key format: device_id, direction, port,
         # trans_proto, domain, timestamp
         # mapped value : packetsize
@@ -34,9 +41,9 @@ class passiveHandler(object):
         self.currentNode = ''
         self.Date = ''
         self.nodes = []
-        self.NODE_LIST = pkl.load(open('NODE_LIST.dat', 'rb'))
+#        self.NODE_LIST = pkl.load(open('NODE_LIST.dat', 'rb'))
         try:
-            self.db = leveldb.LevelDB(filename)     # read leveldb
+            self.db = leveldb.LevelDB(self.filename)     # read leveldb
             self.codec = MessageCodec(pb2file='trace.pb2', typename='passive.Trace')    # mapped to only useful metrics
         except:
             print "Initialization Unsuccessful"
@@ -59,8 +66,9 @@ class passiveHandler(object):
 
         self.port_dist_size = defaultdict(int)
         self.port_dist_count = defaultdict(int)
-        self.bytesperportperminute = defaultdict(int)
-        self.requestsperportpersecond = defaultdict(int)
+#        self.bytesperportperminute = defaultdict(int)
+#        self.requestsperportpersecond = defaultdict(int)
+        self.infoPerMinute = defaultdict(int)
 
         # DEVICE v/s connected or not
         self.devices = defaultdict(list)
@@ -76,8 +84,8 @@ class passiveHandler(object):
         for key, value in self.db.RangeIter():
             #get key
             node_id, anon_context, session_id, sequence_number = self.parse_key(key)
-            if not (node_id in self.NODE_LIST):
-                continue
+#            if not (node_id in self.NODE_LIST):
+#                continue
             if node_id != self.currentNode:
                 if self.currentNode != '':
                     # decode trace only if date in range, else wait till next node_id
@@ -193,11 +201,16 @@ class passiveHandler(object):
             self.size_stats(packetSize, timehash, direction)
             self.port_stats(packetSize, timehash, direction, port)
             self.device_stats(timehash, deviceid)
-            self.requestsperportpersecond[port, direction, ts.replace(microsecond=0)] += 1
+
+            self.all_stats(timehash, deviceid, direction, port, trans_proto, domain, packetSize)
+#            self.requestsperportpersecond[port, direction, ts.replace(microsecond=0)] += 1
 
         dbmapped.Write(dbbatch, sync=True)
 
         return dbmapped
+
+    def all_stats(self, timehash, deviceid, direction, port, transproto, domain, packetSize):
+        self.infoPerMinute[timehash][deviceid, direction, port, transproto, domain] += packetSize
 
     def parse_key(self, key):
         node_id, anonymization_context, remainder = key.split('\x00', 2)
@@ -272,7 +285,7 @@ class passiveHandler(object):
         self.port_dist_size[port, direction] += size
         self.port_dist_count[port, direction] += 1
 
-        self.bytesperportperminute[port, direction, timehash] += size
+#        self.bytesperportperminute[port, direction, timehash] += size
         return
 
     def device_stats(self, timehash, deviceid):
@@ -287,12 +300,14 @@ class passiveHandler(object):
 
         pkl.dump(self.port_dist_size, open(self.folder + self.currentNode + 'port_dist_size.out', 'wb'))
         pkl.dump(self.port_dist_count, open(self.folder + self.currentNode + 'port_dist_count.out', 'wb'))
-        pkl.dump(self.bytesperportperminute, open(self.folder + self.currentNode + 'bytesperportperminute.out', 'wb'))
-        pkl.dump(self.requestsperportpersecond, open(self.folder + self.currentNode + 'requestsperportpersecond.out', 'wb'))
+#        pkl.dump(self.bytesperportperminute, open(self.folder + self.currentNode + 'bytesperportperminute.out', 'wb'))
+#        pkl.dump(self.requestsperportpersecond, open(self.folder + self.currentNode + 'requestsperportpersecond.out', 'wb'))
 
         pkl.dump(self.devices, open(self.folder + self.currentNode + 'device_state.out', 'wb'))
 
         pkl.dump(self.routerActive, open(self.folder + self.currentNode + 'active.out', 'wb'))
+
+        pkl.dump(self.infoPerMinute, open(self.folder + 'AllInfo/' + self.currentNode + '.out', 'wb'))
 
         return
 
