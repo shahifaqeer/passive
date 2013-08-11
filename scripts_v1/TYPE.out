@@ -1,0 +1,20 @@
+(dp0
+I1
+S'HTTP/HTTPS'
+p1
+sI2
+S'SSH'
+p2
+sI3
+S'IMAP/POP3'
+p3
+sI4
+S'GooglePlay'
+p4
+sI5
+S'Apple Software Update'
+p5
+sI6
+S'Gtalk'
+p6
+s.
